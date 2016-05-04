@@ -1,9 +1,11 @@
-﻿// ConsoleApplication1.cpp : 定义控制台应用程序的入口点。
-#include <stdafx.h>
+﻿#include "stdafx.h"
 #include <stdio.h>
 #include <Windows.h>
 #include <process.h>
 #include <string.h>
+
+using namespace std;
+
 #pragma comment(lib,"Ws2_32.lib")
 #define MAXSIZE 65507 //发送数据报文的最大长度
 #define HTTP_PORT 80 //http 服务器端口
@@ -50,13 +52,14 @@ SOCKET serverSocket;
 };
 int _tmain(int argc, _TCHAR* argv[])
 {
-    printf("代理服务器正在启动\n");
-    printf("初始化...\n");
+    cout<<"代理服务器正在启动"<<endl;
+    cout<<"初始化..."<<endl;
     if(!InitSocket()){
-        printf("socket 初始化失败\n");
+        cout<<"socket 初始化失败"<<endl;
         return -1;
     }
-    printf("代理服务器正在运行，监听端口 %d\n",ProxyPort);
+	cout<<"代理服务器正在运行，监听端口 :"<<ProxyPort<<endl;
+    cout<<"代理服务器正在运行，监听端口 "<<ProxyPort<<endl;
     SOCKET acceptSocket = INVALID_SOCKET;
 	/*
 	#define INVALID_SOCKET  (SOCKET)(~0)
@@ -111,12 +114,12 @@ BOOL InitSocket(){
     err = WSAStartup(wVersionRequested, &wsaData);
     if(err != 0){
     //找不到 winsock.dll
-        printf("加载 winsock 失败，错误代码为: %d\n", WSAGetLastError());
+        cout<<"加载 winsock 失败，错误代码为: "<<WSAGetLastError()<<endl;
         return FALSE;
     }
     if(LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) !=2)
     {
-        printf("不能找到正确的 winsock 版本\n");
+        cout<<"不能找到正确的 winsock 版本"<<endl;
         WSACleanup();
         return FALSE;
     }
@@ -125,7 +128,7 @@ BOOL InitSocket(){
 	//SOCK_DGRAM 支持无连接的、不可靠的和使用固定大小（通常很小）缓冲区的数据报服务，为Internet地址族使用UDP。
 	//SOCK_STREAM类型的套接口为全双向的字节流。对于流类套接口，在接收或发送数据前必需处于已连接状态
     if(INVALID_SOCKET == ProxyServer){
-        printf("创建套接字失败，错误代码为： %d\n",WSAGetLastError());
+        cout<<"创建套接字失败，错误代码为"<<WSAGetLastError()<<endl;
         return FALSE;
     }
     ProxyServerAddr.sin_family = AF_INET;
@@ -144,11 +147,11 @@ BOOL InitSocket(){
 	//in_addr是一个函数，可以用来表示一个32位的IPv4地址
     if(bind(ProxyServer,(SOCKADDR*)&ProxyServerAddr,sizeof(SOCKADDR)) == SOCKET_ERROR){
 		//bind理解为给socket结构里面的Ip地址和端口号赋值
-		printf("绑定套接字失败\n");
+		cout<<"绑定套接字失败"<<endl;
 		return FALSE;
     }
     if(listen(ProxyServer, SOMAXCONN) == SOCKET_ERROR){
-		printf("监听端口%d 失败",ProxyPort);
+		cout<<"监听端口"<<ProxyPort<< "失败"<<endl;
 		return FALSE;
     }
     return TRUE;
@@ -178,17 +181,25 @@ unsigned int __stdcall ProxyThread(LPVOID lpParameter)
 	CacheBuffer = new char[recvSize + 1];
 	ZeroMemory(CacheBuffer,recvSize + 1);
 	memcpy(CacheBuffer,Buffer,recvSize);
-	ParseHttpHead(CacheBuffer,httpHeader);
+	ParseHttpHead(CacheBuffer,httpHeader);//解析头部，把头部的需要用的四种数据都放入到httpheader中
 	delete CacheBuffer;
 	if(!ConnectToServer(&((ProxyParam*)lpParameter)->serverSocket,httpHeader->host)) {
 		goto error;
 	}
-	printf("代理连接主机 %s 成功\n",httpHeader->host);
+	cout<<"代理连接主机 "<<httpHeader->host<<" 成功"<<endl;
 	//将客户端发送的 HTTP 数据报文直接转发给目标服务器
 	ret = send(((ProxyParam *)lpParameter)->serverSocket,Buffer,strlen(Buffer)+ 1,0);
+	/*send():
+	向一个已连接的套接口发送数据。
+	#include <winsock.h>
+	int PASCAL FAR send( SOCKET s, const char FAR* buf, int len, int flags);
+	s：一个用于标识已连接套接口的描述字。
+	buf：包含待发送数据的缓冲区。
+	len：缓冲区中数据的长度。
+	flags：调用执行方式。*/
 	//等待目标服务器返回数据
-	recvSize = recv(((ProxyParam
-	*)lpParameter)->serverSocket,Buffer,MAXSIZE,0);
+	recvSize = recv(((ProxyParam*)lpParameter)->serverSocket,Buffer,MAXSIZE,0);
+	//函数原型int recv( _In_ SOCKET s, _Out_ char *buf, _In_ int len, _In_ int flags);
 	if(recvSize <= 0){
 		goto error;
 	}
@@ -196,7 +207,7 @@ unsigned int __stdcall ProxyThread(LPVOID lpParameter)
 	ret = send(((ProxyParam*)lpParameter)->clientSocket,Buffer,sizeof(Buffer),0);
 	//错误处理
 	error:
-	printf("关闭套接字\n");
+	cout<<"关闭套接字"<<endl;
 	Sleep(200);
 	closesocket(((ProxyParam*)lpParameter)->clientSocket);
 	closesocket(((ProxyParam*)lpParameter)->serverSocket);
@@ -219,21 +230,24 @@ void ParseHttpHead(char *buffer,HttpHeader * httpHeader)
 	char *ptr;
 	const char * delim = "\r\n";
 	p = strtok_s(buffer,delim,&ptr);//提取第一行
-	printf("%s\n",p);
+	cout<<p<<endl;
 	if(p[0] == 'G')
 	{//GET 方式
 		memcpy(httpHeader->method,"GET",3);
-		memcpy(httpHeader->url,&p[4],strlen(p) -13);
+		memcpy(httpHeader->url,&p[4],strlen(p) -13);//13.14是从哪里来的，如何计算的
+		//cout<<"%s\n",httpHeader->url);
 	}
 	else if(p[0] == 'P')
 	{//POST 方式
 		memcpy(httpHeader->method,"POST",4);
 		memcpy(httpHeader->url,&p[5],strlen(p) - 14);
 	}
-	printf("%s\n",httpHeader->url);
-	p = strtok_s(NULL,delim,&ptr);
+	cout<<httpHeader->url<<endl;
+	//p = strtok_s(NULL,delim,&ptr);
+	
 	while(p)
-	{
+	{//具体内容看书，关于cookie，请求报文的头部的结构
+		//cout<<"%s\n",p);
 		switch(p[0]){
 			case 'H'://Host
 			memcpy(httpHeader->host,&p[6],strlen(p) - 6);
@@ -267,16 +281,54 @@ void ParseHttpHead(char *buffer,HttpHeader * httpHeader)
 //************************************
 BOOL ConnectToServer(SOCKET *serverSocket,char *host)
 {
+	/*
+	struct sockaddr_in {
+        short   sin_family;
+        u_short sin_port;
+        struct  in_addr sin_addr;
+        char    sin_zero[8];
+	};
+
+	struct  hostent {
+        char    FAR * h_name;           // official name of host
+        char    FAR * FAR * h_aliases;  // alias list 
+        short   h_addrtype;             // host address type 
+        short   h_length;               // length of address 
+        char    FAR * FAR * h_addr_list; // list of addresses 
+	#define h_addr  h_addr_list[0]          // address, for backward compat 
+	};
+
+	*/
 	sockaddr_in serverAddr;
 	serverAddr.sin_family = AF_INET;
 	serverAddr.sin_port = htons(HTTP_PORT);
+	//htons是将整型变量从主机字节顺序转变成网络字节顺序， 就是整数在地址空间存储方式变为：高位字节存放在内存的低地址处。
 	HOSTENT *hostent = gethostbyname(host);
+	//hostent是host entry的缩写，该结构记录主机的信息，包括主机名、别名、地址类型、
+	//地址长度和地址列表。之所以主机的地址是一个列表的形式，原因是当一个主机有多个网络接口时，自然有多个地址。
+	//gethostbyname()返回对应于给定主机名的包含主机名字和地址信息的hostent结构指针。结构的声明与gethostbyaddr()中一致。
 	if(!hostent)
 	{
 		return FALSE;
 	}
 	in_addr Inaddr=*( (in_addr*) *hostent->h_addr_list);
+
 	serverAddr.sin_addr.s_addr = inet_addr(inet_ntoa(Inaddr));
+	/*
+	in_addr_t inet_addr(const char* strptr);
+	返回：若字符串有效则将字符串转换为32位二进制网络字节序的IPV4地址，否则为INADDR_NONE
+	struct in_addr{
+		in_addr_t s_addr;
+	}
+	*/
+
+	/*
+		char*inet_ntoa(struct in_addr in);
+		将一个十进制网络字节序转换为点分十进制IP格式的字符串。
+		一个网络上的IP地址
+		返回值：
+		如果正确，返回一个字符指针，指向一块存储着点分格式IP地址的静态缓冲区（同一线程内共享此内存）；错误，返回NULL。
+	*/
 	*serverSocket = socket(AF_INET,SOCK_STREAM,0);
 	if(*serverSocket == INVALID_SOCKET)
 	{
